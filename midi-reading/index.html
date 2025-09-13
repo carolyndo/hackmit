@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/tone@latest/build/Tone.js"></script>
+  <meta charset="UTF-8">
+  <title>MIDI Player</title>
+</head>
+<body>
+  <h1>Web MIDI Player</h1>
+  <input type="file" id="midiInput" accept=".mid" />
+  <button id="playBtn">Play</button>
+  <button id="stopBtn">Stop</button>
+  
+  <div id="currentNotes" style="margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 5px; font-weight: bold;">
+    No notes currently playing
+  </div>
+  
+  <div id="currentLyrics" style="margin: 10px 0; padding: 10px; background: #f0f8e8; border-radius: 5px; font-weight: bold; font-size: 18px; text-align: center;">
+    No lyrics currently playing
+  </div>
+  
+  <div id="midiDataSection" style="display: none; margin-top: 20px;">
+    <h2>MIDI File Data</h2>
+    <button id="analyzeBtn" style="margin: 10px 0; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Analyze MIDI Structure</button>
+    <div id="analysisResults" style="display: none; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;"></div>
+    <pre id="midiJsonData" style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; max-height: 500px; overflow-y: auto;"></pre>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
