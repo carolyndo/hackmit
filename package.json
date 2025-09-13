@@ -1,0 +1,24 @@
+{
+  "name": "crescendo",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^24.3.3",
+    "tsx": "^4.20.5"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "bun run dist/index.js",
+    "dev": "bun --watch src/index.ts"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@mentra/sdk": "^2.1.22"
+  }
+}
