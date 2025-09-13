@@ -7,6 +7,8 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "^24.3.3",
     "tsx": "^4.20.5"
   },
@@ -19,6 +21,8 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@mentra/sdk": "^2.1.22"
+    "@mentra/sdk": "^2.1.22",
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
   }
 }

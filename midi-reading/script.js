@@ -4,6 +4,50 @@ let currentlyPlayingNotes = new Set();
 let noteStartTimes = new Map();
 let lyrics = [];
 let currentLyricIndex = -1;
+let lastLeadNote = "";
+
+
+// If the glasses can't reach your laptop, set this to your ngrok HTTPS URL
+const API_BASE = "http://localhost:3001";
+const GAP = 150; // disable throttle for testing, we'll dedupe by last payload
+
+const playingCount = new Map(); // name -> count
+
+// Choose the most recently-started MIDI note as the "lead" to display
+function getLeadNote() {
+  if (currentlyPlayingNotes.size === 0) return "";
+  let best = "", bestT = -Infinity;
+  for (const n of currentlyPlayingNotes) {
+    const t = noteStartTimes.get(n) ?? -Infinity;
+    if (t > bestT) { best = n; bestT = t; }
+  }
+  return best;
+}
+
+let currentNoteText = "";
+let currentLyricText = "";
+
+const pushNowPlaying = (() => {
+  let lastNote = "", lastLyric = "";
+  return async (note, lyric) => {
+    note = (note || "").trim();
+    lyric = (lyric || "").trim();
+    if (note === lastNote && lyric === lastLyric) return; // dedupe
+    lastNote = note; lastLyric = lyric;
+    console.debug("[nowplaying->API]", { note, lyric });
+    try {
+      const res = await fetch(`${API_BASE}/nowplaying`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note, lyric }),
+        keepalive: true,
+      });
+      if (!res.ok) console.error("[nowplaying] server responded", res.status);
+    } catch (e) {
+      console.error("[nowplaying] post failed", e);
+    }
+  };
+})();
 
 document.getElementById('midiInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -108,39 +152,53 @@ document.getElementById('playBtn').addEventListener('click', async () => {
             
             // Schedule note start
             Tone.Transport.schedule((time) => {
-                synth.triggerAttack(note.name, time, note.velocity);
-                currentlyPlayingNotes.add(note.name);
-                noteStartTimes.set(note.name, time);
-                updateCurrentNoteDisplay();
+            synth.triggerAttack(note.name, time, note.velocity);
+            currentlyPlayingNotes.add(note.name);
+            noteStartTimes.set(note.name, time);
+            updateCurrentNoteDisplay();
+
+            lastLeadNote = note.name;                         // <-- add this
+            if (typeof pushNowPlaying === "function") {       // <-- optional immediate push
+                pushNowPlaying(lastLeadNote, currentLyricText);
+            }
             }, startTime);
-            
+
             // Schedule note end
             Tone.Transport.schedule((time) => {
-                synth.triggerRelease(note.name, time);
-                currentlyPlayingNotes.delete(note.name);
-                noteStartTimes.delete(note.name);
-                updateCurrentNoteDisplay();
+            synth.triggerRelease(note.name, time);
+            currentlyPlayingNotes.delete(note.name);
+            noteStartTimes.delete(note.name);
+            updateCurrentNoteDisplay();
             }, endTime);
         });
     });
 
     // Schedule lyric updates
     scheduleLyricUpdates();
-    
+
+    // NEW: push the lead MIDI note + current lyric every 100ms while playing
+    Tone.Transport.scheduleRepeat(() => {
+    const lead = getLeadNote();
+    pushNowPlaying(lead, currentLyricText);
+    }, 0.1);
+
     // Start transport
     Tone.Transport.start();
     console.log("Playing MIDI...");
 });
 
 function updateCurrentNoteDisplay() {
-    const noteDisplay = document.getElementById('currentNotes');
-    if (noteDisplay) {
-        if (currentlyPlayingNotes.size > 0) {
-            noteDisplay.textContent = `Currently playing: ${Array.from(currentlyPlayingNotes).join(', ')}`;
-        } else {
-            noteDisplay.textContent = 'No notes currently playing';
-        }
+  const noteDisplay = document.getElementById('currentNotes');
+  if (noteDisplay) {
+    if (currentlyPlayingNotes.size > 0) {
+      noteDisplay.textContent = `Currently playing: ${Array.from(currentlyPlayingNotes).join(', ')}`;
+    } else {
+      noteDisplay.textContent = 'No notes currently playing';
     }
+  }
+  if (typeof pushNowPlaying === "function") {
+    pushNowPlaying(lastLeadNote, currentLyricText);  // <-- use lastLeadNote
+  }
 }
 
 function scheduleLyricUpdates() {
@@ -162,17 +220,19 @@ function scheduleLyricUpdates() {
 }
 
 function updateCurrentLyricDisplay() {
-    const lyricDisplay = document.getElementById('currentLyrics');
-    console.log("Updating lyric display. Current index:", currentLyricIndex, "Total lyrics:", lyrics.length);
-    if (lyricDisplay) {
-        if (currentLyricIndex >= 0 && currentLyricIndex < lyrics.length) {
-            console.log("Showing lyric:", lyrics[currentLyricIndex].text);
-            lyricDisplay.textContent = lyrics[currentLyricIndex].text;
-        } else {
-            console.log("No lyric to show");
-            lyricDisplay.textContent = 'No lyrics currently playing';
-        }
+  const lyricDisplay = document.getElementById('currentLyrics');
+  if (lyricDisplay) {
+    if (currentLyricIndex >= 0 && currentLyricIndex < lyrics.length) {
+      lyricDisplay.textContent = lyrics[currentLyricIndex].text;
+      currentLyricText = lyrics[currentLyricIndex].text || "";
+    } else {
+      lyricDisplay.textContent = 'No lyrics currently playing';
+      currentLyricText = "";
     }
+  }
+  if (typeof pushNowPlaying === "function") {
+    pushNowPlaying(lastLeadNote, currentLyricText);  // <-- use lastLeadNote
+  }
 }
 
 // Add stop button functionality
@@ -191,6 +251,11 @@ document.getElementById('stopBtn').addEventListener('click', () => {
     currentLyricIndex = -1;
     updateCurrentNoteDisplay();
     updateCurrentLyricDisplay();
+
+    lastLeadNote = "";                 // clear when you fully stop
+    if (typeof pushNowPlaying === "function") {
+    pushNowPlaying("", "");          // optional: blank out the display on stop
+    }
     
     console.log("Stopped MIDI playback");
 });
