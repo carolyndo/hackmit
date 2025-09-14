@@ -10,7 +10,7 @@ console.log("[BOOT] process.env.PORT =", JSON.stringify(process.env.PORT));
 // ---- config ----
 const PACKAGE_NAME = process.env.PACKAGE_NAME || "com.example.myfirstmentraosapp";
 const PORT = parseInt(process.env.PORT || "8080", 10);
-const API_PORT = PORT + 1;
+const MENTRA_PORT = parseInt(process.env.MENTRA_PORT || "8081", 10);
 const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY;
 if (!MENTRAOS_API_KEY) {
   console.error("MENTRAOS_API_KEY environment variable is required");
@@ -116,14 +116,14 @@ const api = express();
 const server = new MyMentraOSApp({
   packageName: PACKAGE_NAME,
   apiKey: MENTRAOS_API_KEY!,
-  port: API_PORT, // Use API_PORT for MentraOS
+  port: MENTRA_PORT, // Use MENTRA_PORT for MentraOS
 });
 
 // Start Mentra app
-console.log(`[BOOT] Starting Mentra app with package: ${PACKAGE_NAME}, port: ${API_PORT}`);
+console.log(`[BOOT] Starting Mentra app with package: ${PACKAGE_NAME}, port: ${MENTRA_PORT}`);
 server.start()
   .then(() => {
-    console.log(`[APP ] Mentra app running at http://localhost:${API_PORT} (package=${PACKAGE_NAME})`);
+    console.log(`[APP ] Mentra app running at http://localhost:${MENTRA_PORT} (package=${PACKAGE_NAME})`);
     console.log(`[APP ] Ready to accept connections from glasses`);
   })
   .catch(err => {
