@@ -89,7 +89,7 @@ class MyMentraOSApp extends AppServer {
     if (lastPayload) {
       await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.songTitle, lastPayload.pitchCorrection);
     } else {
-      await session.layouts.showTextWall("Select a song on the app. Say 'play' to just play the song or say 'sing' to learn to perform it.");
+      await session.layouts.showTextWall("Select a song on the app.");
     }
     session.events.onDisconnected(() => {
       sessions.delete(session);
