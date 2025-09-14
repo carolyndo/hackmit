@@ -1,4 +1,7 @@
-import { AppServer, AppSession } from "@mentra/sdk";
+import {AppServer, AppSession} from "@mentra/sdk"
+import dotenv from "dotenv"
+
+dotenv.config()
 import express from "express";
 import cors from "cors";
 
@@ -18,7 +21,7 @@ if (!MENTRAOS_API_KEY) {
 const sessions = new Set<AppSession>();
 let lastPayload: { note: string; lyric: string } | null = null;
 let lastPushAt = 0;
-const MIN_UPDATE_MS = 150;
+const MIN_UPDATE_MS = 16; // ~60fps for smooth real-time display
 
 function clean(s: string, max = 140) {
   const t = (s || "").replace(/\s+/g, " ").trim();
