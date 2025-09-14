@@ -11,7 +11,7 @@ let currentSongTitle = ""; // Track the current song title
 
 
 // If the glasses can't reach your laptop, set this to your ngrok HTTPS URL
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://hackmit-production.up.railway.app";
 
 const playingCount = new Map(); // name -> count
 
