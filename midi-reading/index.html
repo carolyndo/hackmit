@@ -537,6 +537,20 @@
         comparisonStats.wrongNotes++;
       }
       
+      // Create pitch correction data for glasses
+      const pitchCorrection = {
+        isCorrect: isCorrect,
+        expectedNote: midiNote,
+        sungNote: sungNote,
+        detune: detune
+      };
+      
+      // Send pitch correction data to glasses
+      if (typeof pushNowPlaying === "function") {
+        const lead = getLeadNote();
+        pushNowPlaying(lead, currentLyricText, pitchCorrection);
+      }
+      
       // Update display
       updateComparisonDisplay(isCorrect, midiNote, sungNote, detune);
       updateStatsDisplay();

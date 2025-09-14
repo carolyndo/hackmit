@@ -29,18 +29,18 @@ let currentNoteText = "";
 let currentLyricText = "";
 
 const pushNowPlaying = (() => {
-  let lastNote = "", lastLyric = "";
-  return async (note, lyric) => {
+  let lastNote = "", lastLyric = "", lastPitchCorrection = null;
+  return async (note, lyric, pitchCorrection) => {
     note = (note || "").trim();
     lyric = (lyric || "").trim();
-    if (note === lastNote && lyric === lastLyric) return; // dedupe
-    lastNote = note; lastLyric = lyric;
-    console.debug("[nowplaying->API]", { note, lyric });
+    if (note === lastNote && lyric === lastLyric && JSON.stringify(pitchCorrection) === JSON.stringify(lastPitchCorrection)) return; // dedupe
+    lastNote = note; lastLyric = lyric; lastPitchCorrection = pitchCorrection;
+    console.debug("[nowplaying->API]", { note, lyric, pitchCorrection });
     try {
       const res = await fetch(`${API_BASE}/nowplaying`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note, lyric }),
+        body: JSON.stringify({ note, lyric, pitchCorrection }),
         keepalive: true,
       });
       if (!res.ok) console.error("[nowplaying] server responded", res.status);
@@ -205,7 +205,7 @@ document.getElementById('playBtn').addEventListener('click', async () => {
     // NEW: push the lead MIDI note + current lyric every 16ms while playing (~60fps)
     Tone.Transport.scheduleRepeat(() => {
     const lead = getLeadNote();
-    pushNowPlaying(lead, currentLyricText);
+    pushNowPlaying(lead, currentLyricText, null); // No pitch correction data yet
     }, 0.016);
 
     // Start transport
@@ -275,7 +275,7 @@ document.getElementById('stopBtn').addEventListener('click', () => {
 
     lastLeadNote = "";                 // clear when you fully stop
     if (typeof pushNowPlaying === "function") {
-    pushNowPlaying("", "");          // optional: blank out the display on stop
+    pushNowPlaying("", "", null);          // optional: blank out the display on stop
     }
     
     console.log("Stopped MIDI playback");

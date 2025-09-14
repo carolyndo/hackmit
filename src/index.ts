@@ -19,7 +19,7 @@ if (!MENTRAOS_API_KEY) {
 
 // ---- session + render helpers ----
 const sessions = new Set<AppSession>();
-let lastPayload: { note: string; lyric: string } | null = null;
+let lastPayload: { note: string; lyric: string; pitchCorrection?: { isCorrect: boolean; expectedNote?: string; sungNote?: string; detune?: number } } | null = null;
 let lastPushAt = 0;
 const MIN_UPDATE_MS = 16; // ~60fps for smooth real-time display
 
@@ -28,9 +28,23 @@ function clean(s: string, max = 140) {
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
 }
 
-async function renderNoteLyric(session: AppSession, note: string, lyric: string) {
-  const top = clean(note, 40);
-  const bottom = clean(lyric, 240);
+async function renderNoteLyric(session: AppSession, note: string, lyric: string, pitchCorrection?: { isCorrect: boolean; expectedNote?: string; sungNote?: string; detune?: number }) {
+  let top = clean(note, 40);
+  let bottom = clean(lyric, 240);
+  
+  // Add pitch correction display if available
+  if (pitchCorrection) {
+    if (pitchCorrection.isCorrect) {
+      top = "CORRECT";
+    } else {
+      top = "WRONG";
+      if (pitchCorrection.expectedNote && pitchCorrection.sungNote) {
+        top = `WRONG\nExpected: ${pitchCorrection.expectedNote}\nSang: ${pitchCorrection.sungNote}`;
+      }
+    }
+    // Keep lyrics on the right side (bottom) as normal
+  }
+  
   const layouts: any = (session as any).layouts;
   if (typeof layouts.showDoubleTextWall === "function") {
     await layouts.showDoubleTextWall(top, bottom);
@@ -42,7 +56,7 @@ async function renderNoteLyric(session: AppSession, note: string, lyric: string)
   }
 }
 
-async function broadcast(note: string, lyric: string) {
+async function broadcast(note: string, lyric: string, pitchCorrection?: { isCorrect: boolean; expectedNote?: string; sungNote?: string; detune?: number }) {
   const now = Date.now();
   if (now - lastPushAt < MIN_UPDATE_MS) return;
   lastPushAt = now;
@@ -53,9 +67,9 @@ async function broadcast(note: string, lyric: string) {
   // If the client sent an empty note (common on lyric ticks), reuse last note
   const effectiveNote = incoming || (lastPayload?.note || "");
 
-  lastPayload = { note: effectiveNote, lyric: lyricToUse };
+  lastPayload = { note: effectiveNote, lyric: lyricToUse, pitchCorrection };
   await Promise.allSettled(
-    [...sessions].map(s => renderNoteLyric(s, effectiveNote, lyricToUse))
+    [...sessions].map(s => renderNoteLyric(s, effectiveNote, lyricToUse, pitchCorrection))
   );
 }
 
@@ -67,7 +81,7 @@ class MyMentraOSApp extends AppServer {
     session.logger.info(`New session: ${sessionId} for user ${userId}`);
     sessions.add(session);
     if (lastPayload) {
-      await renderNoteLyric(session, lastPayload.note, lastPayload.lyric);
+      await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.pitchCorrection);
     } else {
       await session.layouts.showTextWall("Waiting for notes & lyrics…");
     }
@@ -101,12 +115,12 @@ api.use(express.json());
 api.get("/healthz", (_req, res) => res.json({ ok: true }));
 
 api.post("/nowplaying", async (req, res) => {
-  const { note, lyric } = req.body || {};
-  console.log("[API] /nowplaying", { note, lyric });
+  const { note, lyric, pitchCorrection } = req.body || {};
+  console.log("[API] /nowplaying", { note, lyric, pitchCorrection });
   if (typeof note !== "string" || typeof lyric !== "string") {
     return res.status(400).json({ ok: false, error: "Expected JSON {note, lyric} as strings" });
   }
-  await broadcast(note, lyric);
+  await broadcast(note, lyric, pitchCorrection);
   res.json({ ok: true });
 });
 
