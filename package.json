@@ -14,8 +14,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "bun run dist/index.js",
-    "dev": "bun --watch src/index.ts"
+    "start": "node dist/index.js",
+    "dev": "tsx --watch src/index.ts"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
@@ -23,6 +23,7 @@
   "dependencies": {
     "@mentra/sdk": "^2.1.22",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^5.1.0"
   }
 }

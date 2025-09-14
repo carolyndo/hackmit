@@ -84,37 +84,52 @@ async function broadcast(note: string, lyric: string, songTitle?: string, pitchC
  */
 class MyMentraOSApp extends AppServer {
   protected override async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
+    console.log(`[SESSION] New session: ${sessionId} for user ${userId}`);
     session.logger.info(`New session: ${sessionId} for user ${userId}`);
     sessions.add(session);
-    if (lastPayload) {
-      await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.songTitle, lastPayload.pitchCorrection);
-    } else {
-      await session.layouts.showTextWall("Select a song on the app. Say 'play' to just play the song or say 'sing' to learn to perform it.");
+    
+    try {
+      if (lastPayload) {
+        console.log(`[SESSION] Showing last payload:`, lastPayload);
+        await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.songTitle, lastPayload.pitchCorrection);
+      } else {
+        console.log(`[SESSION] Showing initial message`);
+        await session.layouts.showTextWall("Select a song on the app. Say 'play' to just play the song or say 'sing' to learn to perform it.");
+        console.log(`[SESSION] Initial message sent successfully`);
+      }
+    } catch (error) {
+      console.error(`[SESSION] Error displaying message:`, error);
     }
+    
     session.events.onDisconnected(() => {
       sessions.delete(session);
+      console.log(`[SESSION] Session ${sessionId} disconnected`);
       session.logger.info(`Session ${sessionId} disconnected.`);
     });
   }
 }
 
+// ---- Express server as primary (for Railway) ----
+const api = express();
+
+// ---- MentraOS App Server on a different port ----
 const server = new MyMentraOSApp({
   packageName: PACKAGE_NAME,
   apiKey: MENTRAOS_API_KEY!,
-  port: PORT,
+  port: API_PORT, // Use API_PORT for MentraOS
 });
 
 // Start Mentra app
+console.log(`[BOOT] Starting Mentra app with package: ${PACKAGE_NAME}, port: ${API_PORT}`);
 server.start()
   .then(() => {
-    console.log(`[APP ] Mentra app running at http://localhost:${PORT} (package=${PACKAGE_NAME})`);
+    console.log(`[APP ] Mentra app running at http://localhost:${API_PORT} (package=${PACKAGE_NAME})`);
+    console.log(`[APP ] Ready to accept connections from glasses`);
   })
   .catch(err => {
     console.error("Failed to start Mentra app:", err);
+    process.exit(1);
   });
-
-// ---- tiny HTTP API on PORT+1 (for your web page) ----
-const api = express();
 
 const allowedOrigins = [
   'https://jamiedani.github.io',
@@ -149,10 +164,10 @@ api.post("/nowplaying", async (req, res) => {
   res.json({ ok: true });
 });
 
-api.listen(API_PORT)
+api.listen(PORT)
   .on("listening", () => {
-    console.log(`[API ] Listening on http://localhost:${API_PORT}`);
+    console.log(`[API ] Listening on http://localhost:${PORT}`);
   })
   .on("error", (err: any) => {
-    console.error(`[API ] Failed to listen on ${API_PORT}:`, err?.code || err, " — try a different port");
+    console.error(`[API ] Failed to listen on ${PORT}:`, err?.code || err, " — try a different port");
   });
