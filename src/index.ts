@@ -5,23 +5,102 @@ dotenv.config()
 import express from "express";
 import cors from "cors";
 
+// Add process error handlers
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+console.log("[BOOT] Starting application...");
 console.log("[BOOT] process.env.PORT =", JSON.stringify(process.env.PORT));
+console.log("[BOOT] process.env.MENTRAOS_API_KEY =", process.env.MENTRAOS_API_KEY ? "SET" : "MISSING");
 
 // ---- config ----
 const PACKAGE_NAME = process.env.PACKAGE_NAME || "com.example.myfirstmentraosapp";
 const PORT = parseInt(process.env.PORT || "8080", 10);
 const MENTRA_PORT = parseInt(process.env.MENTRA_PORT || "8081", 10);
 const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY;
+
+console.log(`[CONFIG] PORT=${PORT}, MENTRA_PORT=${MENTRA_PORT}, PACKAGE=${PACKAGE_NAME}`);
+
 if (!MENTRAOS_API_KEY) {
   console.error("MENTRAOS_API_KEY environment variable is required");
   process.exit(1);
 }
 
+// ---- EXPRESS SERVER FIRST (to ensure Railway health checks work) ----
+const api = express();
+
+const allowedOrigins = [
+  'https://jamiedani.github.io',
+  'http://127.0.0.1:5500',
+  'http://localhost:5500'
+];
+
+api.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+api.use(express.json());
+
+// Add request logging
+api.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.url}`);
+  next();
+});
+
+api.get("/", (req, res) => {
+  console.log("[ROOT] Root endpoint accessed");
+  res.json({ 
+    message: "MentraOS App Server Running",
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    mentraPort: MENTRA_PORT,
+    packageName: PACKAGE_NAME
+  });
+});
+
+api.get("/healthz", (req, res) => {
+  console.log("[HEALTHZ] Health check requested");
+  res.json({ 
+    ok: true, 
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    mentraPort: MENTRA_PORT,
+    sessions: sessions.size
+  });
+});
+
+// Start Express server FIRST
+console.log(`[BOOT] Starting Express server on port ${PORT}...`);
+const expressServer = api.listen(PORT, '0.0.0.0')
+  .on("listening", () => {
+    console.log(`[API ] ✅ Express server listening on 0.0.0.0:${PORT}`);
+    console.log(`[API ] Should be accessible at Railway's assigned domain`);
+  })
+  .on("error", (err: any) => {
+    console.error(`[API ] ❌ Failed to start Express server on ${PORT}:`, err);
+    process.exit(1);
+  });
+
 // ---- session + render helpers ----
 const sessions = new Set<AppSession>();
 let lastPayload: { note: string; lyric: string; songTitle?: string; pitchCorrection?: { isCorrect: boolean; expectedNote?: string; sungNote?: string; detune?: number } } | null = null;
 let lastPushAt = 0;
-const MIN_UPDATE_MS = 16; // ~60fps for smooth real-time display
+const MIN_UPDATE_MS = 16;
 
 function clean(s: string, max = 140) {
   const t = (s || "").replace(/\s+/g, " ").trim();
@@ -32,12 +111,10 @@ async function renderNoteLyric(session: AppSession, note: string, lyric: string,
   let top = clean(note, 40);
   let bottom = clean(lyric, 240);
   
-  // Add song title underneath lyrics if available
   if (songTitle && songTitle.trim()) {
     bottom += `\n\n🎵 ${clean(songTitle, 60)}`;
   }
   
-  // Add pitch correction display if available
   if (pitchCorrection) {
     if (pitchCorrection.isCorrect) {
       top = "CORRECT";
@@ -47,7 +124,6 @@ async function renderNoteLyric(session: AppSession, note: string, lyric: string,
         top = `WRONG\nExpected: ${pitchCorrection.expectedNote}\nSang: ${pitchCorrection.sungNote}`;
       }
     }
-    // Keep lyrics on the right side (bottom) as normal
   }
   
   const layouts: any = (session as any).layouts;
@@ -56,8 +132,11 @@ async function renderNoteLyric(session: AppSession, note: string, lyric: string,
   } else if (typeof layouts.showTextWall === "function") {
     await layouts.showTextWall(`${top}\n\n${bottom}`);
   } else if (typeof layouts.show === "function") {
-    try { await layouts.show({ layoutType: 2, topText: top, bottomText: bottom }); }
-    catch { await layouts.show({ layoutType: 1, text: `${top}\n\n${bottom}` }); }
+    try { 
+      await layouts.show({ layoutType: 2, topText: top, bottomText: bottom }); 
+    } catch { 
+      await layouts.show({ layoutType: 1, text: `${top}\n\n${bottom}` }); 
+    }
   }
 }
 
@@ -69,8 +148,6 @@ async function broadcast(note: string, lyric: string, songTitle?: string, pitchC
   const incoming = (note ?? "").trim();
   const lyricToUse = lyric ?? "";
   const songTitleToUse = songTitle ?? "";
-
-  // If the client sent an empty note (common on lyric ticks), reuse last note
   const effectiveNote = incoming || (lastPayload?.note || "");
 
   lastPayload = { note: effectiveNote, lyric: lyricToUse, songTitle: songTitleToUse, pitchCorrection };
@@ -78,81 +155,6 @@ async function broadcast(note: string, lyric: string, songTitle?: string, pitchC
     [...sessions].map(s => renderNoteLyric(s, effectiveNote, lyricToUse, songTitleToUse, pitchCorrection))
   );
 }
-
-/**
- * Mentra app server (unchanged except: no hardcoded text; show waiting msg)
- */
-class MyMentraOSApp extends AppServer {
-  protected override async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
-    console.log(`[SESSION] New session: ${sessionId} for user ${userId}`);
-    session.logger.info(`New session: ${sessionId} for user ${userId}`);
-    sessions.add(session);
-    
-    try {
-      if (lastPayload) {
-        console.log(`[SESSION] Showing last payload:`, lastPayload);
-        await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.songTitle, lastPayload.pitchCorrection);
-      } else {
-        console.log(`[SESSION] Showing initial message`);
-        await session.layouts.showTextWall("Select a song on the app. Say 'play' to just play the song or say 'sing' to learn to perform it.");
-        console.log(`[SESSION] Initial message sent successfully`);
-      }
-    } catch (error) {
-      console.error(`[SESSION] Error displaying message:`, error);
-    }
-    
-    session.events.onDisconnected(() => {
-      sessions.delete(session);
-      console.log(`[SESSION] Session ${sessionId} disconnected`);
-      session.logger.info(`Session ${sessionId} disconnected.`);
-    });
-  }
-}
-
-// ---- Express server as primary (for Railway) ----
-const api = express();
-
-// ---- MentraOS App Server on a different port ----
-const server = new MyMentraOSApp({
-  packageName: PACKAGE_NAME,
-  apiKey: MENTRAOS_API_KEY!,
-  port: MENTRA_PORT, // Use MENTRA_PORT for MentraOS
-});
-
-// Start Mentra app
-console.log(`[BOOT] Starting Mentra app with package: ${PACKAGE_NAME}, port: ${MENTRA_PORT}`);
-server.start()
-  .then(() => {
-    console.log(`[APP ] Mentra app running at http://localhost:${MENTRA_PORT} (package=${PACKAGE_NAME})`);
-    console.log(`[APP ] Ready to accept connections from glasses`);
-  })
-  .catch(err => {
-    console.error("Failed to start Mentra app:", err);
-    process.exit(1);
-  });
-
-const allowedOrigins = [
-  'https://jamiedani.github.io',
-  'http://127.0.0.1:5500',
-  'http://localhost:5500'
-];
-
-api.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
-api.use(express.json());
-
-api.get("/healthz", (_req, res) => res.json({ ok: true }));
 
 api.post("/nowplaying", async (req, res) => {
   const { note, lyric, songTitle, pitchCorrection } = req.body || {};
@@ -164,10 +166,49 @@ api.post("/nowplaying", async (req, res) => {
   res.json({ ok: true });
 });
 
-api.listen(PORT)
-  .on("listening", () => {
-    console.log(`[API ] Listening on http://localhost:${PORT}`);
-  })
-  .on("error", (err: any) => {
-    console.error(`[API ] Failed to listen on ${PORT}:`, err?.code || err, " — try a different port");
+// ---- MentraOS App Server (start after Express is running) ----
+class MyMentraOSApp extends AppServer {
+  protected override async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
+    console.log(`[SESSION] New session: ${sessionId} for user ${userId}`);
+    sessions.add(session);
+    
+    try {
+      if (lastPayload) {
+        console.log(`[SESSION] Showing last payload`);
+        await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.songTitle, lastPayload.pitchCorrection);
+      } else {
+        console.log(`[SESSION] Showing initial message`);
+        await session.layouts.showTextWall("Select a song on the app. Say 'play' to just play the song or say 'sing' to learn to perform it.");
+      }
+    } catch (error) {
+      console.error(`[SESSION] Error displaying message:`, error);
+    }
+    
+    session.events.onDisconnected(() => {
+      sessions.delete(session);
+      console.log(`[SESSION] Session ${sessionId} disconnected`);
+    });
+  }
+}
+
+// Start MentraOS server after Express is ready
+setTimeout(() => {
+  console.log(`[BOOT] Starting MentraOS server on port ${MENTRA_PORT}...`);
+  
+  const server = new MyMentraOSApp({
+    packageName: PACKAGE_NAME,
+    apiKey: MENTRAOS_API_KEY!,
+    port: MENTRA_PORT,
   });
+
+  server.start()
+    .then(() => {
+      console.log(`[APP ] ✅ MentraOS server running on port ${MENTRA_PORT}`);
+      console.log(`[APP ] Package: ${PACKAGE_NAME}`);
+      console.log(`[APP ] Ready for glasses connections`);
+    })
+    .catch(err => {
+      console.error("[APP ] ❌ Failed to start MentraOS server:", err);
+      // Don't exit - keep Express server running
+    });
+}, 2000); // Wait 2 seconds for Express to be fully ready
