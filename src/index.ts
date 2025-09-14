@@ -178,7 +178,7 @@ class MyMentraOSApp extends AppServer {
         await renderNoteLyric(session, lastPayload.note, lastPayload.lyric, lastPayload.songTitle, lastPayload.pitchCorrection);
       } else {
         console.log(`[SESSION] Showing initial message`);
-        await session.layouts.showTextWall("Select a song on the app. Say 'play' to just play the song or say 'sing' to learn to perform it.");
+        await session.layouts.showTextWall("Select a song on the app.");
       }
     } catch (error) {
       console.error(`[SESSION] Error displaying message:`, error);
