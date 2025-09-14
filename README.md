@@ -25,9 +25,9 @@ We started by exploring how to program and display information on the Mentra gla
 
 ## 👥 Individual Contributions
 
-- **Jamie Caleb:** Worked on sourcing MIDI files and extracting to get lyrics and notes
+- **Jamie Calub:** Worked on sourcing MIDI files and extracting to get lyrics and notes displayed on website
 - **Carolyn Do:** Connected glasses to application and synced the lyrics and notes to display on the glasses
-- **Mirada Makhmutova:** Was able to implement pitch correcting feature
+- **Mirada Makhmutova:** Was able to implement pitch correcting feature and UI design
 
 ## 🚧 Challenges we ran into
 
