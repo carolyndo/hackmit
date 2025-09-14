@@ -5,11 +5,12 @@ let noteStartTimes = new Map();
 let lyrics = [];
 let currentLyricIndex = -1;
 let lastLeadNote = "";
+let lyricBatches = []; // Store lyrics grouped into batches of 5
+let currentBatchIndex = -1;
 
 
 // If the glasses can't reach your laptop, set this to your ngrok HTTPS URL
 const API_BASE = "http://localhost:3001";
-const GAP = 150; // disable throttle for testing, we'll dedupe by last payload
 
 const playingCount = new Map(); // name -> count
 
@@ -79,6 +80,7 @@ function displayMidiData(midiData) {
 function extractLyrics(midiData) {
     lyrics = [];
     currentLyricIndex = -1;
+    currentBatchIndex = -1;
     
     console.log("MIDI data structure:", midiData);
     console.log("Header:", midiData.header);
@@ -118,7 +120,33 @@ function extractLyrics(midiData) {
     // Sort lyrics by time
     lyrics.sort((a, b) => a.time - b.time);
     
+    // Create lyric batches of 5 words each
+    createLyricBatches();
+    
     console.log("Extracted lyrics:", lyrics);
+    console.log("Created lyric batches:", lyricBatches);
+}
+
+function createLyricBatches() {
+    lyricBatches = [];
+    currentBatchIndex = -1;
+    
+    if (lyrics.length === 0) return;
+    
+    // Group lyrics into batches of 5
+    for (let i = 0; i < lyrics.length; i += 5) {
+        const batch = lyrics.slice(i, i + 5);
+        const batchText = batch.map(lyric => lyric.text).join(' ');
+        const batchTime = batch[0].time; // Use the time of the first lyric in the batch
+        
+        lyricBatches.push({
+            text: batchText,
+            time: batchTime,
+            lyrics: batch // Keep reference to original lyrics for debugging
+        });
+        
+        console.log(`Created batch ${lyricBatches.length - 1}: "${batchText}" at time ${batchTime}`);
+    }
 }
 
 document.getElementById('playBtn').addEventListener('click', async () => {
@@ -133,6 +161,7 @@ document.getElementById('playBtn').addEventListener('click', async () => {
     currentlyPlayingNotes.clear();
     noteStartTimes.clear();
     currentLyricIndex = -1;
+    currentBatchIndex = -1;
 
     await Tone.start(); // Required for browser autoplay policy
     
@@ -158,9 +187,6 @@ document.getElementById('playBtn').addEventListener('click', async () => {
             updateCurrentNoteDisplay();
 
             lastLeadNote = note.name;                         // <-- add this
-            if (typeof pushNowPlaying === "function") {       // <-- optional immediate push
-                pushNowPlaying(lastLeadNote, currentLyricText);
-            }
             }, startTime);
 
             // Schedule note end
@@ -176,11 +202,11 @@ document.getElementById('playBtn').addEventListener('click', async () => {
     // Schedule lyric updates
     scheduleLyricUpdates();
 
-    // NEW: push the lead MIDI note + current lyric every 100ms while playing
+    // NEW: push the lead MIDI note + current lyric every 16ms while playing (~60fps)
     Tone.Transport.scheduleRepeat(() => {
     const lead = getLeadNote();
     pushNowPlaying(lead, currentLyricText);
-    }, 0.1);
+    }, 0.016);
 
     // Start transport
     Tone.Transport.start();
@@ -196,42 +222,36 @@ function updateCurrentNoteDisplay() {
       noteDisplay.textContent = 'No notes currently playing';
     }
   }
-  if (typeof pushNowPlaying === "function") {
-    pushNowPlaying(lastLeadNote, currentLyricText);  // <-- use lastLeadNote
-  }
 }
 
 function scheduleLyricUpdates() {
-    console.log("Scheduling lyric updates. Total lyrics:", lyrics.length);
-    if (lyrics.length === 0) {
-        console.log("No lyrics to schedule");
+    console.log("Scheduling lyric batch updates. Total batches:", lyricBatches.length);
+    if (lyricBatches.length === 0) {
+        console.log("No lyric batches to schedule");
         return;
     }
     
-    // Schedule lyric updates for each lyric
-    lyrics.forEach((lyric, index) => {
-        console.log(`Scheduling lyric ${index}: "${lyric.text}" at time ${lyric.time}`);
+    // Schedule lyric updates for each batch
+    lyricBatches.forEach((batch, index) => {
+        console.log(`Scheduling batch ${index}: "${batch.text}" at time ${batch.time}`);
         Tone.Transport.schedule((time) => {
-            console.log(`Lyric scheduled event triggered for: "${lyric.text}"`);
-            currentLyricIndex = index;
+            console.log(`Lyric batch scheduled event triggered for: "${batch.text}"`);
+            currentBatchIndex = index;
             updateCurrentLyricDisplay();
-        }, lyric.time);
+        }, batch.time);
     });
 }
 
 function updateCurrentLyricDisplay() {
   const lyricDisplay = document.getElementById('currentLyrics');
   if (lyricDisplay) {
-    if (currentLyricIndex >= 0 && currentLyricIndex < lyrics.length) {
-      lyricDisplay.textContent = lyrics[currentLyricIndex].text;
-      currentLyricText = lyrics[currentLyricIndex].text || "";
+    if (currentBatchIndex >= 0 && currentBatchIndex < lyricBatches.length) {
+      lyricDisplay.textContent = lyricBatches[currentBatchIndex].text;
+      currentLyricText = lyricBatches[currentBatchIndex].text || "";
     } else {
       lyricDisplay.textContent = 'No lyrics currently playing';
       currentLyricText = "";
     }
-  }
-  if (typeof pushNowPlaying === "function") {
-    pushNowPlaying(lastLeadNote, currentLyricText);  // <-- use lastLeadNote
   }
 }
 
@@ -249,6 +269,7 @@ document.getElementById('stopBtn').addEventListener('click', () => {
     currentlyPlayingNotes.clear();
     noteStartTimes.clear();
     currentLyricIndex = -1;
+    currentBatchIndex = -1;
     updateCurrentNoteDisplay();
     updateCurrentLyricDisplay();
 
