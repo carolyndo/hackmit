@@ -7,6 +7,7 @@ let currentLyricIndex = -1;
 let lastLeadNote = "";
 let lyricBatches = []; // Store lyrics grouped into batches of 5
 let currentBatchIndex = -1;
+let currentSongTitle = ""; // Track the current song title
 
 
 // If the glasses can't reach your laptop, set this to your ngrok HTTPS URL
@@ -29,18 +30,19 @@ let currentNoteText = "";
 let currentLyricText = "";
 
 const pushNowPlaying = (() => {
-  let lastNote = "", lastLyric = "", lastPitchCorrection = null;
-  return async (note, lyric, pitchCorrection) => {
+  let lastNote = "", lastLyric = "", lastSongTitle = "", lastPitchCorrection = null;
+  return async (note, lyric, songTitle, pitchCorrection) => {
     note = (note || "").trim();
     lyric = (lyric || "").trim();
-    if (note === lastNote && lyric === lastLyric && JSON.stringify(pitchCorrection) === JSON.stringify(lastPitchCorrection)) return; // dedupe
-    lastNote = note; lastLyric = lyric; lastPitchCorrection = pitchCorrection;
-    console.debug("[nowplaying->API]", { note, lyric, pitchCorrection });
+    songTitle = (songTitle || "").trim();
+    if (note === lastNote && lyric === lastLyric && songTitle === lastSongTitle && JSON.stringify(pitchCorrection) === JSON.stringify(lastPitchCorrection)) return; // dedupe
+    lastNote = note; lastLyric = lyric; lastSongTitle = songTitle; lastPitchCorrection = pitchCorrection;
+    console.debug("[nowplaying->API]", { note, lyric, songTitle, pitchCorrection });
     try {
       const res = await fetch(`${API_BASE}/nowplaying`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note, lyric, pitchCorrection }),
+        body: JSON.stringify({ note, lyric, songTitle, pitchCorrection }),
         keepalive: true,
       });
       if (!res.ok) console.error("[nowplaying] server responded", res.status);
@@ -50,6 +52,101 @@ const pushNowPlaying = (() => {
   };
 })();
 
+// Pre-loaded MIDI files functionality
+const preloadedMidiFiles = {
+    'TwinkleTwinkle.mid': {
+        title: 'Twinkle Twinkle',
+        description: 'Classic children\'s lullaby',
+        path: '../midi-tracks/TwinkleTwinkle.mid'
+    },
+    'HereComesTheSun.mid': {
+        title: 'Here Comes The Sun',
+        description: 'The Beatles classic',
+        path: '../midi-tracks/HereComesTheSun.mid'
+    }
+};
+
+// Load pre-loaded MIDI file
+async function loadPreloadedMidi(filename) {
+    try {
+        console.log(`Loading pre-loaded MIDI file: ${filename}`);
+        
+        // Show loading state
+        const songCard = document.querySelector(`[data-file="${filename}"]`);
+        const loadBtn = songCard.querySelector('.load-song-btn');
+        loadBtn.textContent = 'Loading...';
+        loadBtn.disabled = true;
+        
+        // Fetch the MIDI file
+        const response = await fetch(preloadedMidiFiles[filename].path);
+        if (!response.ok) {
+            throw new Error(`Failed to load ${filename}: ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        
+        // Parse the MIDI file
+        midiData = new Midi(arrayBuffer);
+        console.log("Pre-loaded MIDI loaded:", midiData);
+        
+        // Set the current song title
+        currentSongTitle = preloadedMidiFiles[filename].title;
+        
+        // Display the JSON data
+        displayMidiData(midiData);
+        
+        // Update UI to show loaded state
+        songCard.classList.add('loaded');
+        loadBtn.textContent = '✓ Loaded';
+        loadBtn.disabled = false;
+        
+        // Clear other loaded states
+        document.querySelectorAll('.song-card').forEach(card => {
+            if (card !== songCard) {
+                card.classList.remove('loaded');
+                const btn = card.querySelector('.load-song-btn');
+                btn.textContent = 'Load Song';
+                btn.disabled = false;
+            }
+        });
+        
+        // Update debug info
+        if (typeof updateDebugInfo === 'function') {
+            updateDebugInfo(`Pre-loaded MIDI file "${filename}" loaded successfully`);
+        }
+        
+    } catch (error) {
+        console.error('Error loading pre-loaded MIDI:', error);
+        alert(`Failed to load ${filename}: ${error.message}`);
+        
+        // Reset button state
+        const songCard = document.querySelector(`[data-file="${filename}"]`);
+        const loadBtn = songCard.querySelector('.load-song-btn');
+        loadBtn.textContent = 'Load Song';
+        loadBtn.disabled = false;
+    }
+}
+
+// Add event listeners for pre-loaded song buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.load-song-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const songCard = this.closest('.song-card');
+            const filename = songCard.getAttribute('data-file');
+            loadPreloadedMidi(filename);
+        });
+    });
+    
+    // Also add click listeners to song cards
+    document.querySelectorAll('.song-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const filename = this.getAttribute('data-file');
+            loadPreloadedMidi(filename);
+        });
+    });
+});
+
 document.getElementById('midiInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     const arrayBuffer = await file.arrayBuffer();
@@ -58,8 +155,19 @@ document.getElementById('midiInput').addEventListener('change', async (e) => {
     midiData = new Midi(arrayBuffer);
     console.log("MIDI loaded:", midiData);
     
+    // Set the current song title from filename
+    currentSongTitle = file.name.replace('.mid', '');
+    
     // Display the JSON data
     displayMidiData(midiData);
+    
+    // Clear pre-loaded song states when user uploads their own file
+    document.querySelectorAll('.song-card').forEach(card => {
+        card.classList.remove('loaded');
+        const btn = card.querySelector('.load-song-btn');
+        btn.textContent = 'Load Song';
+        btn.disabled = false;
+    });
 });
 
 function displayMidiData(midiData) {
@@ -205,7 +313,7 @@ document.getElementById('playBtn').addEventListener('click', async () => {
     // NEW: push the lead MIDI note + current lyric every 16ms while playing (~60fps)
     Tone.Transport.scheduleRepeat(() => {
     const lead = getLeadNote();
-    pushNowPlaying(lead, currentLyricText, null); // No pitch correction data yet
+    pushNowPlaying(lead, currentLyricText, currentSongTitle, null); // No pitch correction data yet
     }, 0.016);
 
     // Start transport
@@ -275,7 +383,7 @@ document.getElementById('stopBtn').addEventListener('click', () => {
 
     lastLeadNote = "";                 // clear when you fully stop
     if (typeof pushNowPlaying === "function") {
-    pushNowPlaying("", "", null);          // optional: blank out the display on stop
+    pushNowPlaying("", "", "", null);          // optional: blank out the display on stop
     }
     
     console.log("Stopped MIDI playback");

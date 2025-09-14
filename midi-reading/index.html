@@ -288,6 +288,69 @@
       font-size: 12px;
       margin: 10px 0;
     }
+    
+    .preloaded-songs {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    
+    .song-card {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 2px solid #dee2e6;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .song-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
+      border-color: #667eea;
+    }
+    
+    .song-card.loaded {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      border-color: #28a745;
+    }
+    
+    .song-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    
+    .song-description {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 15px;
+    }
+    
+    .load-song-btn {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    
+    .load-song-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+    
+    .load-song-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      transform: none;
+    }
   </style>
 </head>
 <body>
@@ -299,22 +362,6 @@
     
     <div class="content">
       <div class="left-panel">
-        <!-- MIDI Player Section -->
-        <div class="section">
-          <h3>🎼 MIDI Player</h3>
-          <input type="file" id="midiInput" accept=".mid" />
-          <button id="playBtn">▶️ Play</button>
-          <button id="stopBtn">⏹️ Stop</button>
-          
-          <div id="currentNotes" class="current-notes">
-            No notes currently playing
-          </div>
-          
-          <div id="currentLyrics" class="current-lyrics">
-            No lyrics currently playing
-          </div>
-        </div>
-
         <!-- Pitch Detection Section -->
         <div class="section">
           <h3>🎯 Pitch Detection</h3>
@@ -380,6 +427,48 @@
       </div>
       
       <div class="right-panel">
+        <!-- Lyrics Section -->
+        <div class="section">
+          <h3>🎤 Lyrics</h3>
+          <div id="currentLyrics" class="current-lyrics">
+            No lyrics currently playing
+          </div>
+        </div>
+
+        <!-- Currently Playing Section -->
+        <div class="section">
+          <h3>🎵 Currently Playing</h3>
+          <div id="currentNotes" class="current-notes">
+            No notes currently playing
+          </div>
+        </div>
+
+        <!-- Pre-loaded MIDI Files Section -->
+        <div class="section">
+          <h3>🎵 Pre-loaded Songs</h3>
+          <p>Choose from our collection of pre-loaded MIDI files:</p>
+          <div class="preloaded-songs">
+            <div class="song-card" data-file="TwinkleTwinkle.mid">
+              <div class="song-title">⭐ Twinkle Twinkle</div>
+              <div class="song-description">Classic children's lullaby</div>
+              <button class="load-song-btn">Load Song</button>
+            </div>
+            <div class="song-card" data-file="HereComesTheSun.mid">
+              <div class="song-title">☀️ Here Comes The Sun</div>
+              <div class="song-description">The Beatles classic</div>
+              <button class="load-song-btn">Load Song</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MIDI Player Section -->
+        <div class="section">
+          <h3>🎼 MIDI Player</h3>
+          <input type="file" id="midiInput" accept=".mid" />
+          <button id="playBtn">▶️ Play</button>
+          <button id="stopBtn">⏹️ Stop</button>
+        </div>
+        
         <!-- Current Status -->
         <div class="section">
           <h3>📊 Current Status</h3>
@@ -548,7 +637,7 @@
       // Send pitch correction data to glasses
       if (typeof pushNowPlaying === "function") {
         const lead = getLeadNote();
-        pushNowPlaying(lead, currentLyricText, pitchCorrection);
+        pushNowPlaying(lead, currentLyricText, currentSongTitle, pitchCorrection);
       }
       
       // Update display
