@@ -3,63 +3,669 @@
 <head>
   <script src="https://cdn.jsdelivr.net/npm/tone@latest/build/Tone.js"></script>
   <meta charset="UTF-8">
-  <title>MIDI Player</title>
+  <title>MIDI Player with Note Comparison</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .content {
+      display: flex;
+      min-height: 600px;
+    }
+    
+    .left-panel {
+      flex: 1;
+      padding: 20px;
+      border-right: 1px solid #eee;
+    }
+    
+    .right-panel {
+      flex: 1;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .section h3 {
+      margin-top: 0;
+      color: #333;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .comparison-display {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .correct {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+      animation: pulse 0.5s ease-in-out;
+    }
+    
+    .wrong {
+      background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+      color: white;
+      animation: shake 0.5s ease-in-out;
+    }
+    
+    .neutral {
+      background: #6c757d;
+      color: white;
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .stat-number {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    
+    .note-display {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 5px;
+    }
+    
+    .note-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .note-name {
+      font-size: 20px;
+      font-weight: bold;
+    }
+    
+    .note-frequency {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .detune-info {
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .detector {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .detector.confident {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+    }
+    
+    .detector.vague {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .pitch {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    
+    .note {
+      font-size: 32px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    
+    .detune {
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    
+    .detune.flat {
+      color: #dc3545;
+    }
+    
+    .detune.sharp {
+      color: #fd7e14;
+    }
+    
+    canvas {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    
+    input[type="file"] {
+      margin: 10px 0;
+      padding: 10px;
+      border: 2px dashed #667eea;
+      border-radius: 5px;
+      background: #f8f9fa;
+      width: 100%;
+    }
+    
+    .current-notes, .current-lyrics {
+      margin: 10px 0;
+      padding: 15px;
+      background: #e8f4f8;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    
+    .current-lyrics {
+      background: #f0f8e8;
+      font-size: 18px;
+      text-align: center;
+    }
+    
+    .tolerance-control {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    
+    .tolerance-control label {
+      display: block;
+      margin: 10px 0;
+      font-weight: 500;
+    }
+    
+    .tolerance-control input[type="range"] {
+      width: 100%;
+      margin: 10px 0;
+    }
+    
+    .tolerance-value {
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .debug-info {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 12px;
+      margin: 10px 0;
+    }
+  </style>
 </head>
 <body>
-  <h1>Web MIDI Player</h1>
-  <input type="file" id="midiInput" accept=".mid" />
-  <button id="playBtn">Play</button>
-  <button id="stopBtn">Stop</button>
-  
-  <div id="currentNotes" style="margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 5px; font-weight: bold;">
-    No notes currently playing
-  </div>
-  
-  <div id="currentLyrics" style="margin: 10px 0; padding: 10px; background: #f0f8e8; border-radius: 5px; font-weight: bold; font-size: 18px; text-align: center;">
-    No lyrics currently playing
+  <div class="container">
+    <div class="header">
+      <h1>🎵 MIDI Player with Real-Time Note Comparison</h1>
+      <p>Upload a MIDI file, sing along, and get instant feedback on your accuracy!</p>
+    </div>
+    
+    <div class="content">
+      <div class="left-panel">
+        <!-- MIDI Player Section -->
+        <div class="section">
+          <h3>🎼 MIDI Player</h3>
+          <input type="file" id="midiInput" accept=".mid" />
+          <button id="playBtn">▶️ Play</button>
+          <button id="stopBtn">⏹️ Stop</button>
+          
+          <div id="currentNotes" class="current-notes">
+            No notes currently playing
+          </div>
+          
+          <div id="currentLyrics" class="current-lyrics">
+            No lyrics currently playing
+          </div>
+        </div>
+
+        <!-- Pitch Detection Section -->
+        <div class="section">
+          <h3>🎯 Pitch Detection</h3>
+          <p><button onclick="startPitchDetect();">Start Detection</button> 
+             <button onclick="stopPitchDetect();">Stop Detection</button></p>
+          <p>
+            <button onclick="this.innerText = togglePlayback()">Use Demo Audio</button>
+            <button onclick="toggleLiveInput()">Use Live Input</button>
+            <button onclick="toggleOscillator()">Use Oscillator</button>
+          </p>
+
+          <div id="detector" class="detector vague">
+            <div class="pitch"><span id="pitch">--</span>Hz</div>
+            <div class="note"><span id="note">--</span></div>   
+            <canvas id="output" width=300 height=42></canvas>
+            <div id="detune" class="detune">
+              <span id="detune_amt">--</span>
+              <span id="flat">cents ♭</span>
+              <span id="sharp">cents ♯</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Note Comparison Section -->
+        <div class="section">
+          <h3>🔄 Note Comparison</h3>
+          <div class="tolerance-control">
+            <label for="toleranceSlider">Tolerance (cents): <span class="tolerance-value" id="toleranceValue">50</span></label>
+            <input type="range" id="toleranceSlider" min="10" max="100" value="50" step="10">
+            <small>Lower values = stricter comparison</small>
+          </div>
+          
+          <div id="comparisonDisplay" class="comparison-display neutral">
+            <div>🎵 Ready to compare notes!</div>
+          </div>
+          
+          <div class="stats">
+            <div class="stat-card">
+              <div class="stat-number" id="totalNotes">0</div>
+              <div class="stat-label">Total Notes</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="correctNotes">0</div>
+              <div class="stat-label">Correct</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="wrongNotes">0</div>
+              <div class="stat-label">Wrong</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-number" id="accuracy">0%</div>
+              <div class="stat-label">Accuracy</div>
+            </div>
+          </div>
+          
+          <button id="resetStatsBtn">🔄 Reset Stats</button>
+          <button id="exportStatsBtn">📊 Export Stats</button>
+          
+          <div class="debug-info" id="debugInfo">
+            Debug: Waiting for MIDI file...
+          </div>
+        </div>
+      </div>
+      
+      <div class="right-panel">
+        <!-- Current Status -->
+        <div class="section">
+          <h3>📊 Current Status</h3>
+          <div class="note-display">
+            <div class="note-info">
+              <div class="note-name" id="currentMidiNote">--</div>
+              <div class="note-frequency">MIDI Note</div>
+            </div>
+            <div class="note-info">
+              <div class="note-name" id="currentSungNote">--</div>
+              <div class="note-frequency">Sung Note</div>
+            </div>
+          </div>
+          <div class="detune-info" id="detuneComparison">No comparison available</div>
+        </div>
+        
+        <!-- MIDI Data Section -->
+        <div id="midiDataSection" style="display: none;">
+          <h3>📄 MIDI File Data</h3>
+          <button id="analyzeBtn">Analyze MIDI Structure</button>
+          <div id="analysisResults" style="display: none;"></div>
+          <pre id="midiJsonData" style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; max-height: 300px; overflow-y: auto;"></pre>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="pitchdetect.js"></script>
-		
-		<p><button onclick="startPitchDetect();">Start</button> <button onclick="stopPitchDetect();">Stop</button></p>
-		<p>
-			<button onclick="this.innerText = togglePlayback()">use demo audio</button>
-			<button onclick="toggleLiveInput()">use live input</button>
-			<button onclick="toggleOscillator()">use oscillator</button>
-			<!--<button onclick="updatePitch(0);">sample</button>-->
-		</p>
-
-		<div id="detector" class="vague">
-			<div class="pitch"><span id="pitch">--</span>Hz</div>
-			<div class="note"><span id="note">--</span></div>   
-			<canvas id="output" width=300 height=42></canvas>
-			<div id="detune"><span id="detune_amt">--</span><span id="flat">cents &#9837;</span><span id="sharp">cents &#9839;</span></div>
-		</div>
-
-		<!-- just used for debugging
-		<canvas id="waveform" width="512" height="256"></canvas>
-		-->
-
-		<script type="text/javascript">
-
-			var _gaq = _gaq || [];
-			_gaq.push(['_setAccount', 'UA-35593052-1']);
-			_gaq.push(['_trackPageview']);
-
-			(function() {
-				var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-				ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-				var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-			})();
-		</script>
-  
-  <div id="midiDataSection" style="display: none; margin-top: 20px;">
-    <h2>MIDI File Data</h2>
-    <button id="analyzeBtn" style="margin: 10px 0; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Analyze MIDI Structure</button>
-    <div id="analysisResults" style="display: none; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;"></div>
-    <pre id="midiJsonData" style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; max-height: 500px; overflow-y: auto;"></pre>
-  </div>
   <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.27/build/Midi.min.js"></script>
   <script src="script.js"></script>
+  
+  <script>
+    // Note comparison variables
+    let comparisonStats = {
+      totalNotes: 0,
+      correctNotes: 0,
+      wrongNotes: 0,
+      tolerance: 50 // cents
+    };
+    
+    let currentMidiNote = null;
+    let currentMidiNoteTime = 0;
+    let midiNotes = [];
+    let isComparisonActive = false;
+    let midiNoteTracker = null;
+    
+    // Debug function
+    function updateDebugInfo(message) {
+      const debugElement = document.getElementById('debugInfo');
+      if (debugElement) {
+        debugElement.textContent = `Debug: ${message}`;
+      }
+      console.log('Debug:', message);
+    }
+    
+    // Tolerance control
+    document.getElementById('toleranceSlider').addEventListener('input', function(e) {
+      comparisonStats.tolerance = parseInt(e.target.value);
+      document.getElementById('toleranceValue').textContent = e.target.value;
+      updateDebugInfo(`Tolerance set to ${e.target.value} cents`);
+    });
+    
+    // Reset stats button
+    document.getElementById('resetStatsBtn').addEventListener('click', function() {
+      comparisonStats = {
+        totalNotes: 0,
+        correctNotes: 0,
+        wrongNotes: 0,
+        tolerance: parseInt(document.getElementById('toleranceSlider').value)
+      };
+      updateStatsDisplay();
+      document.getElementById('comparisonDisplay').innerHTML = '<div>🎵 Stats reset! Ready to compare notes!</div>';
+      document.getElementById('comparisonDisplay').className = 'comparison-display neutral';
+      updateDebugInfo('Stats reset');
+    });
+    
+    // Export stats button
+    document.getElementById('exportStatsBtn').addEventListener('click', function() {
+      const statsData = {
+        timestamp: new Date().toISOString(),
+        stats: comparisonStats,
+        accuracy: comparisonStats.totalNotes > 0 ? (comparisonStats.correctNotes / comparisonStats.totalNotes * 100).toFixed(1) + '%' : '0%'
+      };
+      
+      const blob = new Blob([JSON.stringify(statsData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `note-comparison-stats-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      updateDebugInfo('Stats exported');
+    });
+    
+    // Enhanced pitch detection with note comparison
+    let lastComparisonTime = 0;
+    const COMPARISON_THROTTLE = 200; // Only compare every 200ms to avoid spam
+    
+    function checkNoteComparison() {
+      const now = Date.now();
+      if (now - lastComparisonTime < COMPARISON_THROTTLE) {
+        return;
+      }
+      lastComparisonTime = now;
+      
+      // Get current sung note
+      const sungNoteElement = document.getElementById('note');
+      const sungPitchElement = document.getElementById('pitch');
+      const detuneElement = document.getElementById('detune_amt');
+      
+      if (sungNoteElement && sungNoteElement.innerText !== '--' && isComparisonActive && currentMidiNote) {
+        const sungNote = sungNoteElement.innerText;
+        const sungPitch = parseFloat(sungPitchElement.innerText);
+        const detune = parseInt(detuneElement.innerText) || 0;
+        
+        // Update sung note display
+        document.getElementById('currentSungNote').textContent = sungNote;
+        
+        // Compare with current MIDI note
+        compareNotes(currentMidiNote, sungNote, detune);
+      }
+    }
+    
+    // Hook into the existing updatePitch function
+    const originalUpdatePitch = window.updatePitch;
+    window.updatePitch = function(time) {
+      // Call original function
+      originalUpdatePitch(time);
+      
+      // Check for note comparison
+      checkNoteComparison();
+    };
+    
+    function compareNotes(midiNote, sungNote, detune) {
+      // Convert note names to comparable format
+      const midiNoteBase = midiNote.replace(/\d+/, ''); // Remove octave number
+      const sungNoteBase = sungNote.replace(/\d+/, ''); // Remove octave number
+      
+      // Check if notes match (ignoring octave)
+      const notesMatch = midiNoteBase === sungNoteBase;
+      
+      // Check if detune is within tolerance
+      const detuneWithinTolerance = Math.abs(detune) <= comparisonStats.tolerance;
+      
+      // Determine if the note is correct
+      const isCorrect = notesMatch && detuneWithinTolerance;
+      
+      // Update stats
+      comparisonStats.totalNotes++;
+      if (isCorrect) {
+        comparisonStats.correctNotes++;
+      } else {
+        comparisonStats.wrongNotes++;
+      }
+      
+      // Update display
+      updateComparisonDisplay(isCorrect, midiNote, sungNote, detune);
+      updateStatsDisplay();
+      
+      updateDebugInfo(`Compared: ${midiNote} vs ${sungNote} (${detune}¢) - ${isCorrect ? 'CORRECT' : 'WRONG'}`);
+    }
+    
+    function updateComparisonDisplay(isCorrect, midiNote, sungNote, detune) {
+      const display = document.getElementById('comparisonDisplay');
+      
+      if (isCorrect) {
+        display.innerHTML = `<div>✅ CORRECT!<br>${midiNote} ≈ ${sungNote} (${detune}¢)</div>`;
+        display.className = 'comparison-display correct';
+      } else {
+        display.innerHTML = `<div>❌ WRONG!<br>Expected: ${midiNote}<br>Sung: ${sungNote} (${detune}¢)</div>`;
+        display.className = 'comparison-display wrong';
+      }
+      
+      // Update detune comparison
+      document.getElementById('detuneComparison').textContent = 
+        `Detune: ${detune}¢ (Tolerance: ±${comparisonStats.tolerance}¢)`;
+    }
+    
+    function updateStatsDisplay() {
+      document.getElementById('totalNotes').textContent = comparisonStats.totalNotes;
+      document.getElementById('correctNotes').textContent = comparisonStats.correctNotes;
+      document.getElementById('wrongNotes').textContent = comparisonStats.wrongNotes;
+      
+      const accuracy = comparisonStats.totalNotes > 0 
+        ? (comparisonStats.correctNotes / comparisonStats.totalNotes * 100).toFixed(1) + '%'
+        : '0%';
+      document.getElementById('accuracy').textContent = accuracy;
+    }
+    
+    // Enhanced MIDI playback with note tracking
+    const originalPlayBtn = document.getElementById('playBtn');
+    originalPlayBtn.addEventListener('click', async () => {
+      if (!midiData) {
+        alert('Please load a MIDI file first!');
+        return;
+      }
+      
+      updateDebugInfo('Starting MIDI playback and note tracking...');
+      
+      // Extract and sort all notes by time
+      midiNotes = [];
+      midiData.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          midiNotes.push({
+            name: note.name,
+            time: note.time,
+            duration: note.duration,
+            velocity: note.velocity
+          });
+        });
+      });
+      
+      // Sort by time
+      midiNotes.sort((a, b) => a.time - b.time);
+      
+      updateDebugInfo(`Loaded ${midiNotes.length} notes from MIDI file`);
+      
+      // Enable comparison
+      isComparisonActive = true;
+      
+      // Start tracking current MIDI note
+      startMidiNoteTracking();
+    });
+    
+    function startMidiNoteTracking() {
+      let noteIndex = 0;
+      
+      const updateCurrentMidiNote = () => {
+        if (!isComparisonActive) return;
+        
+        const currentTime = Tone.Transport.seconds;
+        
+        // Find the current note being played
+        let foundNote = false;
+        for (let i = 0; i < midiNotes.length; i++) {
+          const note = midiNotes[i];
+          const noteEndTime = note.time + note.duration;
+          
+          if (currentTime >= note.time && currentTime <= noteEndTime) {
+            if (currentMidiNote !== note.name) {
+              currentMidiNote = note.name;
+              currentMidiNoteTime = note.time;
+              document.getElementById('currentMidiNote').textContent = note.name;
+              updateDebugInfo(`Current MIDI note: ${note.name}`);
+            }
+            foundNote = true;
+            break;
+          }
+        }
+        
+        // If no note is currently playing, clear the display
+        if (!foundNote && currentMidiNote !== null) {
+          currentMidiNote = null;
+          document.getElementById('currentMidiNote').textContent = '--';
+          updateDebugInfo('No MIDI note currently playing');
+        }
+      };
+      
+      // Update every 100ms
+      if (midiNoteTracker) {
+        clearInterval(midiNoteTracker);
+      }
+      midiNoteTracker = setInterval(updateCurrentMidiNote, 100);
+    }
+    
+    // Stop comparison when MIDI stops
+    const originalStopBtn = document.getElementById('stopBtn');
+    originalStopBtn.addEventListener('click', () => {
+      isComparisonActive = false;
+      currentMidiNote = null;
+      document.getElementById('currentMidiNote').textContent = '--';
+      document.getElementById('currentSungNote').textContent = '--';
+      document.getElementById('detuneComparison').textContent = 'No comparison available';
+      
+      if (midiNoteTracker) {
+        clearInterval(midiNoteTracker);
+        midiNoteTracker = null;
+      }
+      
+      updateDebugInfo('MIDI stopped, comparison disabled');
+    });
+    
+    // Initialize debug info
+    updateDebugInfo('System ready. Load a MIDI file to start.');
+  </script>
 </body>
 </html>
